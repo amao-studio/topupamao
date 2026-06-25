@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>阿毛快速下單系統</title>
+  <!-- 載入 LINE 官方的 LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    #pictureUrl { width: 100px; border-radius: 50%; margin-top: 20px; display: none; }
+    .order-box { margin-top: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 10px; }
+    button { margin-top: 15px; padding: 10px 20px; background-color: #06C755; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <h2>歡迎來到阿毛工作室</h2>
+  
+  <!-- 顯示客戶大頭貼與名字的地方 -->
+  <img id="pictureUrl" src="" alt="Profile Picture">
+  <h3 id="displayName">資料讀取中...</h3>
+
+  <!-- 模擬下單區塊 -->
+  <div class="order-box">
+    <label for="gameSelect">請選擇要代儲的遊戲：</label><br><br>
+    <select id="gameSelect">
+      <option value="傳說對決">傳說對決</option>
+      <option value="原神">原神</option>
+      <option value="崩壞：星穹鐵道">崩壞：星穹鐵道</option>
+    </select>
+    <br>
+    <button onclick="submitOrder()">送出訂單測試</button>
+  </div>
+
+  <script>
+    // ⚠️ 這裡非常重要！請把下方引號內的文字，換成你剛剛在後台拿到的 LIFF ID
+    const myLiffId = "2010516204-8RHWuHLT";
+
+    // 初始化 LIFF 的主程式
+    async function initializeLiff() {
+      try {
+        await liff.init({ liffId: myLiffId });
+        
+        // 確認是否在 LINE 裡面開啟，並抓取資料
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          document.getElementById("displayName").innerText = "你好，" + profile.displayName;
+          document.getElementById("pictureUrl").src = profile.pictureUrl;
+          document.getElementById("pictureUrl").style.display = "inline-block";
+        } else {
+          // 如果不是在 LINE 裡面開啟，提示登入
+          liff.login();
+        }
+      } catch (err) {
+        console.error("LIFF 初始化失敗", err);
+        document.getElementById("displayName").innerText = "初始化失敗，請確認 LIFF ID";
+      }
+    }
+
+    // 模擬按下送出按鈕的動作
+    function submitOrder() {
+      const game = document.getElementById("gameSelect").value;
+      alert("你選擇了：" + game + "\n\n(未來這裡會將資料傳送到你的後端伺服器！)");
+    }
+
+    // 網頁載入時執行初始化
+    initializeLiff();
+  </script>
+
+</body>
+</html>
