@@ -30,17 +30,16 @@
   <img id="pictureUrl" src="" alt="Profile Picture">
   <h3 id="displayName">正在載入 LINE 身分資訊...</h3>
 
-  <!-- 第一頁：選擇遊戲、伺服器、面額 -->
   <div id="step1" class="order-box">
     <div class="input-group">
-      <label>第一區塊：請選擇遊戲</label>
+      <label>請選擇遊戲</label>
       <select id="gameSelect">
         <option value="特戰英豪">特戰英豪</option>
       </select>
     </div>
 
     <div class="input-group">
-      <label>第二區塊：請選擇伺服器</label>
+      <label>請選擇伺服器</label>
       <select id="serverSelect">
         <option value="全服">全服</option>
         <option value="菲服">菲服</option>
@@ -48,21 +47,30 @@
     </div>
 
     <div class="input-group">
-      <label>第三區塊：請選擇面額</label>
+      <label>請選擇面額</label>
       <select id="amountSelect">
-        <!-- 面額選項會透過 JS 自動載入 -->
+        </select>
+    </div>
+
+    <div class="input-group">
+      <label>請選擇支付方式</label>
+      <select id="paymentSelect">
+        <option value="網銀轉帳">網銀轉帳</option>
+        <option value="LINE好友轉帳">LINE好友轉帳</option>
+        <option value="街口轉帳">街口轉帳</option>
+        <option value="7-11條碼繳費">7-11條碼繳費</option>
+        <option value="全家條碼繳費">全家條碼繳費</option>
+        <option value="萊爾富條碼繳費">萊爾富條碼繳費</option>
       </select>
     </div>
 
     <button onclick="goToStep2()">下一步，填寫資料</button>
   </div>
 
-  <!-- 第二頁：動態表單 -->
   <div id="step2" class="order-box" style="display: none;">
     <h3 style="margin-top: 0; color: #06C755;">填寫代儲資訊</h3>
     <p id="orderSummary" style="font-size: 14px; color: #666; font-weight: bold; margin-bottom: 20px;"></p>
     
-    <!-- 表單內容會透過 JS 根據伺服器動態產生 -->
     <div id="dynamicForm"></div>
 
     <button id="submitBtn" onclick="submitOrder()">確認送出訂單</button>
@@ -120,9 +128,10 @@
       const game = document.getElementById("gameSelect").value;
       const server = document.getElementById("serverSelect").value;
       const amount = document.getElementById("amountSelect").value;
+      const payment = document.getElementById("paymentSelect").value; // 新增：抓取付款方式
 
-      // 更新第二頁的訂單摘要
-      document.getElementById("orderSummary").innerText = `已選：${game} | ${server} | ${amount}`;
+      // 更新第二頁的訂單摘要，加入付款方式
+      document.getElementById("orderSummary").innerText = `已選：${game} | ${server} | ${amount} | ${payment}`;
 
       // 根據伺服器動態產生表單
       const formContainer = document.getElementById("dynamicForm");
@@ -178,13 +187,14 @@
 
       const server = document.getElementById("serverSelect").value;
       
-      // 打包要傳送的基礎資料結構
+      // 打包要傳送的基礎資料結構，加上 payment
       let payload = {
         userId: userProfile.userId,
         displayName: userProfile.displayName,
         game: document.getElementById("gameSelect").value,
         server: server,
-        amount: document.getElementById("amountSelect").value
+        amount: document.getElementById("amountSelect").value,
+        payment: document.getElementById("paymentSelect").value // 新增：傳送付款方式給後台
       };
 
       // 根據表單動態抓取填寫的資料
