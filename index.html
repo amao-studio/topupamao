@@ -59,12 +59,12 @@
       <label>請選擇支付方式</label>
       <select id="paymentSelect">
         <option value="" disabled selected>請選擇支付方式...</option>
-        <option value="網銀轉帳">網銀轉帳 $0-$15手續費</option>
-        <option value="LINE好友轉帳">LINE好友轉帳 $0手續費</option>
-        <option value="街口轉帳">街口轉帳 $0手續費</option>
-        <option value="7-11條碼繳費">7-11條碼繳費 $0手續費</option>
-        <option value="全家條碼繳費">全家條碼繳費 $15手續費</option>
-        <option value="萊爾富條碼繳費">萊爾富條碼繳費 $15手續費</option>
+        <option value="網銀轉帳">網銀轉帳</option>
+        <option value="LINE好友轉帳">LINE好友轉帳</option>
+        <option value="街口轉帳">街口轉帳</option>
+        <option value="7-11條碼繳費">7-11條碼繳費</option>
+        <option value="全家條碼繳費">全家條碼繳費</option>
+        <option value="萊爾富條碼繳費">萊爾富條碼繳費</option>
       </select>
     </div>
 
@@ -86,7 +86,6 @@
     const apiUrl = "https://script.google.com/macros/s/AKfycbyTAce-Ab1ziBxzbX_LMo3cd102KFhv_ABYBx9meo9ZpZVT1iFBNlBJjXlgBEOO28Yr/exec"; 
     let userProfile = null;
 
-    // 💰 全服與菲服自定義金額對應表（已依面額大小排序）
     const amountOptions = {
       "全服": [
         "16350VP = $4100",
@@ -100,24 +99,29 @@
         "1000VP = $300"
       ],
       "菲服": [
+        "【 Riot ID直充 】", 
         "16350VP = $3700",
         "13050VP = $3000",
         "11000VP = $2500",
         "9000VP = $2200",
         "7400VP = $1800",
-        "6710VP = $1450",
         "5350VP = $1300",
         "3650VP = $1000",
-        "3250VP = $800",
         "2050VP = $600",
+        "1000VP = $300",
+        "475VP = $150",
+        "【 序號 】",       
+        "6710VP = $1450",
+        "3250VP = $800",
         "1900VP = $500",
         "1260VP = $350",
-        "1000VP = $300",
         "600VP = $200",
-        "475VP = $150",
         "355VP = $150"
       ]
     };
+
+    // 🕵️‍♂️ 建立序號專用面額清單，用來給程式對照
+    const serialAmounts = ["6710VP = $1450", "3250VP = $800", "1900VP = $500", "1260VP = $350", "600VP = $200", "355VP = $150"];
 
     async function initializeLiff() {
       try {
@@ -146,6 +150,13 @@
           let option = document.createElement("option");
           option.value = amount;
           option.text = amount;
+          
+          if (amount.startsWith("【")) {
+            option.disabled = true;
+            option.style.fontWeight = "bold"; 
+            option.style.color = "#999";
+          }
+          
           amountSelect.appendChild(option);
         });
       }
@@ -165,6 +176,7 @@
       document.getElementById("orderSummary").innerText = `已選：${game} | ${server} | ${amount} | ${payment}`;
 
       const formContainer = document.getElementById("dynamicForm");
+      
       if (server === "全服") {
         formContainer.innerHTML = `
           <div class="input-group">
@@ -189,12 +201,24 @@
           </div>
         `;
       } else if (server === "菲服") {
-        formContainer.innerHTML = `
-          <div class="input-group">
-            <label>Riot ID：</label>
-            <input type="text" id="riotId" placeholder="格式如：XXX#XXX">
-          </div>
-        `;
+        // ✨ 新增判定：如果選的是序號面額，就不要產生輸入框，改為親切的提示字
+        if (serialAmounts.includes(amount)) {
+          formContainer.innerHTML = `
+            <div style="padding: 20px 0; color: #666; font-size: 15px; line-height: 1.6;">
+              📦 您所選擇的是<b style="color: #ff9800;">【序號商品】</b>。<br>
+              此商品不需填寫任何遊戲帳密或 Riot ID！<br>
+              請直接點擊下方按鈕送出訂單，系統會自動發送付款資訊給您。
+            </div>
+          `;
+        } else {
+          // 直充商品才需要輸入 Riot ID
+          formContainer.innerHTML = `
+            <div class="input-group">
+              <label>Riot ID：</label>
+              <input type="text" id="riotId" placeholder="格式如：XXX#XXX">
+            </div>
+          `;
+        }
       }
 
       document.getElementById("step1").style.display = "none";
@@ -213,13 +237,14 @@
       }
 
       const server = document.getElementById("serverSelect").value;
+      const amount = document.getElementById("amountSelect").value;
       
       let payload = {
         userId: userProfile.userId,
         displayName: userProfile.displayName,
         game: document.getElementById("gameSelect").value,
         server: server,
-        amount: document.getElementById("amountSelect").value,
+        amount: amount,
         payment: document.getElementById("paymentSelect").value
       };
 
@@ -235,11 +260,16 @@
           return;
         }
       } else if (server === "菲服") {
-        payload.riotId = document.getElementById("riotId").value.trim();
-        
-        if(!payload.riotId) {
-          alert("⚠️ 請填寫 Riot ID！");
-          return;
+        // ✨ 新增判定：只有「非序號面額」（直充）才去抓取並檢查 riotId 欄位
+        if (!serialAmounts.includes(amount)) {
+          payload.riotId = document.getElementById("riotId").value.trim();
+          if(!payload.riotId) {
+            alert("⚠️ 請填寫 Riot ID！");
+            return;
+          }
+        } else {
+          // 如果是序號，欄位直接帶入「購買序號商品」方便試算表和 LINE 紀錄
+          payload.riotId = "購買序號商品";
         }
       }
 
