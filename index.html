@@ -15,6 +15,7 @@
     
     .input-group { margin-top: 15px; text-align: left; }
     .input-group label { display: block; font-weight: bold; font-size: 14px; margin-bottom: 5px; color: #555; }
+    .price-hint { margin-top: 5px; font-size: 14px; color: #06C755; font-weight: bold; }
     
     button { margin-top: 20px; width: 100%; padding: 12px; background-color: #06C755; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
     button:hover { background-color: #05b34c; }
@@ -32,27 +33,32 @@
 
   <div id="step1" class="order-box">
     <div class="input-group">
-      <label>請選擇遊戲</label>
+      <label>請選擇遊戲/項目</label>
       <select id="gameSelect">
-        <option value="" disabled selected>請選擇遊戲...</option>
+        <option value="" disabled selected>請選擇項目...</option>
         <option value="特戰英豪">特戰英豪</option>
+        <option value="抖音">抖音</option>
       </select>
     </div>
 
     <div class="input-group">
-      <label>請選擇伺服器</label>
+      <label>請選擇伺服器/版本</label>
       <select id="serverSelect">
-        <option value="" disabled selected>請選擇伺服器...</option>
-        <option value="全服">全服</option>
-        <option value="菲服">菲服</option>
+        <option value="" disabled selected>請先選擇項目...</option>
       </select>
     </div>
 
-    <div class="input-group">
+    <div class="input-group" id="amountSelectGroup">
       <label>請選擇面額</label>
       <select id="amountSelect">
         <option value="" disabled selected>請先選擇伺服器...</option>
       </select>
+    </div>
+
+    <div class="input-group" id="customAmountGroup" style="display: none;">
+      <label id="customAmountLabel">請輸入欲購買數量</label>
+      <input type="number" id="customAmountInput" placeholder="請輸入數量" min="1">
+      <div class="price-hint" id="customPriceCalc">目前金額：$0</div>
     </div>
 
     <div class="input-group">
@@ -86,41 +92,25 @@
     const apiUrl = "https://script.google.com/macros/s/AKfycbyTAce-Ab1ziBxzbX_LMo3cd102KFhv_ABYBx9meo9ZpZVT1iFBNlBJjXlgBEOO28Yr/exec"; 
     let userProfile = null;
 
+    // 項目與伺服器聯動設定
+    const serverOptions = {
+      "特戰英豪": ["全服", "菲服"],
+      "抖音": ["大陸版", "國際版"]
+    };
+
     const amountOptions = {
       "全服": [
-        "16350VP = $4100",
-        "13050VP = $3300",
-        "11000VP = $2700",
-        "9000VP = $2400",
-        "7400VP = $2000",
-        "5350VP = $1400",
-        "3650VP = $1000",
-        "2050VP = $600",
-        "1000VP = $300"
+        "16350VP = $4100", "13050VP = $3300", "11000VP = $2700", "9000VP = $2400", 
+        "7400VP = $2000", "5350VP = $1400", "3650VP = $1000", "2050VP = $600", "1000VP = $300"
       ],
       "菲服": [
-        "【 Riot ID直充 】", 
-        "16350VP = $3700",
-        "13050VP = $3000",
-        "11000VP = $2500",
-        "9000VP = $2200",
-        "7400VP = $1800",
-        "5350VP = $1300",
-        "3650VP = $1000",
-        "2050VP = $600",
-        "1000VP = $300",
-        "475VP = $150",
-        "【 序號 】",       
-        "6710VP = $1450",
-        "3250VP = $800",
-        "1900VP = $500",
-        "1260VP = $350",
-        "600VP = $200",
-        "355VP = $150"
+        "【 Riot ID直充 】", "16350VP = $3700", "13050VP = $3000", "11000VP = $2500", 
+        "9000VP = $2200", "7400VP = $1800", "5350VP = $1300", "3650VP = $1000", 
+        "2050VP = $600", "1000VP = $300", "475VP = $150",
+        "【 序號 】", "6710VP = $1450", "3250VP = $800", "1900VP = $500", "1260VP = $350", "600VP = $200", "355VP = $150"
       ]
     };
 
-    // 🕵️‍♂️ 建立序號專用面額清單，用來給程式對照
     const serialAmounts = ["6710VP = $1450", "3250VP = $800", "1900VP = $500", "1260VP = $350", "600VP = $200", "355VP = $150"];
 
     async function initializeLiff() {
@@ -140,86 +130,175 @@
       }
     }
 
-    document.getElementById("serverSelect").addEventListener("change", function() {
-      const server = this.value;
-      const amountSelect = document.getElementById("amountSelect");
-      amountSelect.innerHTML = '<option value="" disabled selected>請選擇面額...</option>'; 
+    // 監聽：項目(遊戲)改變時，連動伺服器下拉選單
+    document.getElementById("gameSelect").addEventListener("change", function() {
+      const game = this.value;
+      const serverSelect = document.getElementById("serverSelect");
+      serverSelect.innerHTML = '<option value="" disabled selected>請選擇伺服器/版本...</option>';
+      document.getElementById("amountSelect").innerHTML = '<option value="" disabled selected>請先選擇伺服器...</option>';
       
-      if (server && amountOptions[server]) {
-        amountOptions[server].forEach(amount => {
+      // 隱藏自輸入框，顯示一般下拉框
+      document.getElementById("amountSelectGroup").style.display = "block";
+      document.getElementById("customAmountGroup").style.display = "none";
+      document.getElementById("customAmountInput").value = "";
+      document.getElementById("customPriceCalc").innerText = "目前金額：$0";
+
+      if (game && serverOptions[game]) {
+        serverOptions[game].forEach(server => {
           let option = document.createElement("option");
-          option.value = amount;
-          option.text = amount;
-          
-          if (amount.startsWith("【")) {
-            option.disabled = true;
-            option.style.fontWeight = "bold"; 
-            option.style.color = "#999";
-          }
-          
-          amountSelect.appendChild(option);
+          option.value = server;
+          option.text = server;
+          serverSelect.appendChild(option);
         });
       }
+    });
+
+    // 監聽：伺服器改變時，判定切換「固定選單」或「自選數量」
+    document.getElementById("serverSelect").addEventListener("change", function() {
+      const game = document.getElementById("gameSelect").value;
+      const server = this.value;
+      const amountSelect = document.getElementById("amountSelect");
+      
+      amountSelect.innerHTML = '<option value="" disabled selected>請選擇面額...</option>';
+      document.getElementById("customAmountInput").value = "";
+      document.getElementById("customPriceCalc").innerText = "目前金額：$0";
+
+      if (game === "抖音") {
+        // 隱藏下拉選單，開啟輸入框
+        document.getElementById("amountSelectGroup").style.display = "none";
+        document.getElementById("customAmountGroup").style.display = "block";
+        
+        if (server === "大陸版") {
+          document.getElementById("customAmountLabel").innerText = "請輸入欲購買鑽石數量 (限100鑽石/$50為單位)";
+          document.getElementById("customAmountInput").placeholder = "例如：100, 200, 500...";
+        } else if (server === "國際版") {
+          document.getElementById("customAmountLabel").innerText = "請輸入欲購買金幣數量 (限140金幣/$50為單位)";
+          document.getElementById("customAmountInput").placeholder = "例如：140, 280, 560...";
+        }
+      } else {
+        // 特戰英豪：顯示下拉選單
+        document.getElementById("amountSelectGroup").style.display = "block";
+        document.getElementById("customAmountGroup").style.display = "none";
+        
+        if (server && amountOptions[server]) {
+          amountOptions[server].forEach(amount => {
+            let option = document.createElement("option");
+            option.value = amount;
+            option.text = amount;
+            if (amount.startsWith("【")) {
+              option.disabled = true;
+              option.style.fontWeight = "bold"; 
+              option.style.color = "#999";
+            }
+            amountSelect.appendChild(option);
+          });
+        }
+      }
+    });
+
+    // 監聽：抖音自選數量即時價格試算
+    document.getElementById("customAmountInput").addEventListener("input", function() {
+      const server = document.getElementById("serverSelect").value;
+      const val = parseInt(this.value) || 0;
+      let price = 0;
+
+      if (server === "大陸版") {
+        price = Math.floor(val / 100) * 50;
+      } else if (server === "國際版") {
+        price = Math.floor(val / 140) * 50;
+      }
+      document.getElementById("customPriceCalc").innerText = `目前金額：$${price}`;
     });
 
     function goToStep2() {
       const game = document.getElementById("gameSelect").value;
       const server = document.getElementById("serverSelect").value;
-      const amount = document.getElementById("amountSelect").value;
       const payment = document.getElementById("paymentSelect").value;
+      let amount = "";
+
+      if (game === "抖音") {
+        const inputVal = parseInt(document.getElementById("customAmountInput").value) || 0;
+        if (inputVal <= 0) {
+          alert("⚠️ 請輸入正確的購買數量！");
+          return;
+        }
+        // 進行單位防呆倍數檢查
+        if (server === "大陸版") {
+          if (inputVal % 100 !== 0) {
+            alert("⚠️ 大陸版限制必須以 100 鑽石為單位遞增輸入！（例如：100, 200, 300...）");
+            return;
+          }
+          let calculatedPrice = (inputVal / 100) * 50;
+          amount = `${inputVal}鑽石 = $${calculatedPrice}`;
+        } else if (server === "國際版") {
+          if (inputVal % 140 !== 0) {
+            alert("⚠️ 國際版限制必須以 140 金幣為單位遞增輸入！（例如：140, 280, 420...）");
+            return;
+          }
+          let calculatedPrice = (inputVal / 140) * 50;
+          amount = `${inputVal}金幣 = $${calculatedPrice}`;
+        }
+      } else {
+        amount = document.getElementById("amountSelect").value;
+      }
 
       if (!game || !server || !amount || !payment) {
-        alert("⚠️ 請確認「遊戲、伺服器、面額、支付方式」皆已選擇！");
+        alert("⚠️ 請確認所有選項和面額皆已選擇/填寫完整！");
         return;
       }
 
       document.getElementById("orderSummary").innerText = `已選：${game} | ${server} | ${amount} | ${payment}`;
-
       const formContainer = document.getElementById("dynamicForm");
       
-      if (server === "全服") {
-        formContainer.innerHTML = `
-          <div class="input-group">
-            <label>登入方式：</label>
-            <input type="text" id="loginMethod" value="Riot" readonly>
-          </div>
-          <div class="input-group">
-            <label>帳號：</label>
-            <input type="text" id="account" placeholder="請輸入 Riot 帳號">
-          </div>
-          <div class="input-group">
-            <label>密碼：</label>
-            <input type="text" id="password" placeholder="請輸入密碼">
-          </div>
-          <div class="input-group">
-            <label>區服：</label>
-            <input type="text" id="region" placeholder="請輸入區服">
-          </div>
-          <div class="input-group">
-            <label>名稱：</label>
-            <input type="text" id="characterName" placeholder="請輸入遊戲名稱">
-          </div>
-        `;
-      } else if (server === "菲服") {
-        // ✨ 新增判定：如果選的是序號面額，就不要產生輸入框，改為親切的提示字
-        if (serialAmounts.includes(amount)) {
+      // 動態產生 Step 2 填寫區
+      if (game === "特戰英豪") {
+        if (server === "全服") {
           formContainer.innerHTML = `
-            <div style="padding: 20px 0; color: #666; font-size: 15px; line-height: 1.6;">
-              📦 您所選擇的是<b style="color: #ff9800;">【序號商品】</b>。<br>
-              此商品不需填寫任何遊戲帳密或 Riot ID！<br>
-              請直接點擊下方按鈕送出訂單，由客服向您發送支付方式。
-            </div>
+            <div class="input-group"><label>登入方式：</label><input type="text" id="loginMethod" value="Riot" readonly></div>
+            <div class="input-group"><label>帳號：</label><input type="text" id="account" placeholder="請輸入 Riot 帳號"></div>
+            <div class="input-group"><label>密碼：</label><input type="text" id="password" placeholder="請輸入密碼"></div>
+            <div class="input-group"><label>區服：</label><input type="text" id="region" placeholder="請輸入區服"></div>
+            <div class="input-group"><label>名稱：</label><input type="text" id="characterName" placeholder="請輸入遊戲名稱"></div>
           `;
-        } else {
-          // 直充商品才需要輸入 Riot ID
+        } else if (server === "菲服") {
+          if (serialAmounts.includes(amount)) {
+            formContainer.innerHTML = `
+              <div style="padding: 20px 0; color: #666; font-size: 15px; line-height: 1.6;">
+                📦 您所選擇的是<b style="color: #ff9800;">【序號商品】</b>。<br>
+                此商品不需填寫任何遊戲帳密或 Riot ID！<br>
+                請直接點擊下方按鈕送出訂單，由客服向您發送支付方式。
+              </div>
+            `;
+          } else {
+            formContainer.innerHTML = `
+              <div class="input-group"><label>Riot ID：</label><input type="text" id="riotId" placeholder="格式如：XXX#XXX"></div>
+            `;
+          }
+        }
+      } else if (game === "抖音") {
+        if (server === "大陸版") {
           formContainer.innerHTML = `
             <div class="input-group">
-              <label>Riot ID：</label>
-              <input type="text" id="riotId" placeholder="格式如：XXX#XXX">
+              <label>抖音號：</label>
+              <input type="text" id="douyinId" placeholder="請輸入您的大陸版抖音號">
+            </div>
+          `;
+        } else if (server === "國際版") {
+          formContainer.innerHTML = `
+            <div class="input-group">
+              <label>綁定電子信箱：</label>
+              <input type="text" id="douyinEmail" placeholder="請輸入 TikTok 綁定信箱">
+            </div>
+            <div class="input-group">
+              <label>密碼：</label>
+              <input type="text" id="douyinPassword" placeholder="請輸入 TikTok 密碼">
             </div>
           `;
         }
       }
+
+      // 用來暫存給送出階段讀取的值
+      formContainer.dataset.resolvedAmount = amount;
 
       document.getElementById("step1").style.display = "none";
       document.getElementById("step2").style.display = "block";
@@ -236,40 +315,53 @@
         return;
       }
 
+      const game = document.getElementById("gameSelect").value;
       const server = document.getElementById("serverSelect").value;
-      const amount = document.getElementById("amountSelect").value;
+      const formContainer = document.getElementById("dynamicForm");
+      const amount = formContainer.dataset.resolvedAmount;
       
       let payload = {
         userId: userProfile.userId,
         displayName: userProfile.displayName,
-        game: document.getElementById("gameSelect").value,
+        game: game,
         server: server,
         amount: amount,
         payment: document.getElementById("paymentSelect").value
       };
 
-      if (server === "全服") {
-        payload.loginMethod = document.getElementById("loginMethod").value;
-        payload.account = document.getElementById("account").value.trim();
-        payload.password = document.getElementById("password").value.trim();
-        payload.region = document.getElementById("region").value.trim();
-        payload.characterName = document.getElementById("characterName").value.trim();
+      // 根據項目收集並檢查參數
+      if (game === "特戰英豪") {
+        if (server === "全服") {
+          payload.loginMethod = document.getElementById("loginMethod").value;
+          payload.account = document.getElementById("account").value.trim();
+          payload.password = document.getElementById("password").value.trim();
+          payload.region = document.getElementById("region").value.trim();
+          payload.characterName = document.getElementById("characterName").value.trim();
 
-        if(!payload.account || !payload.password || !payload.region || !payload.characterName) {
-          alert("⚠️ 請確認所有欄位皆已填寫完整！");
-          return;
-        }
-      } else if (server === "菲服") {
-        // ✨ 新增判定：只有「非序號面額」（直充）才去抓取並檢查 riotId 欄位
-        if (!serialAmounts.includes(amount)) {
-          payload.riotId = document.getElementById("riotId").value.trim();
-          if(!payload.riotId) {
-            alert("⚠️ 請填寫 Riot ID！");
-            return;
+          if(!payload.account || !payload.password || !payload.region || !payload.characterName) {
+            alert("⚠️ 請確認所有欄位皆已填寫完整！"); return;
           }
-        } else {
-          // 如果是序號，欄位直接帶入「購買序號商品」方便試算表和 LINE 紀錄
-          payload.riotId = "購買序號商品";
+        } else if (server === "菲服") {
+          if (!serialAmounts.includes(amount)) {
+            payload.riotId = document.getElementById("riotId").value.trim();
+            if(!payload.riotId) { alert("⚠️ 請填寫 Riot ID！"); return; }
+          } else {
+            payload.riotId = "購買序號商品";
+          }
+        }
+      } else if (game === "抖音") {
+        if (server === "大陸版") {
+          var douyinId = document.getElementById("douyinId").value.trim();
+          if(!douyinId) { alert("⚠️ 請填寫抖音號！"); return; }
+          payload.account = douyinId; // 將抖音號存入帳號欄位，以便試算表整齊
+          payload.loginMethod = "抖音號充值";
+        } else if (server === "國際版") {
+          var email = document.getElementById("douyinEmail").value.trim();
+          var pwd = document.getElementById("douyinPassword").value.trim();
+          if(!email || !pwd) { alert("⚠️ 請確認信箱與密碼皆已填寫！"); return; }
+          payload.account = email;
+          payload.password = pwd;
+          payload.loginMethod = "信箱登入";
         }
       }
 
