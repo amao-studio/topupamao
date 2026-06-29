@@ -399,7 +399,7 @@
     let selectedTopupAmount = 0;
 
     const serverOptions = {
-      "特戰英豪": ["全服", "菲服"],
+      "特戰英豪": ["全服", "菲服", "贈送特務幣"],
       "抖音": ["大陸版", "國際版"],
       "Steam點數卡": ["無須選擇"],
       "YouTube Premium": ["年繳方案"]
@@ -422,6 +422,9 @@
       ],
       "年繳方案": [
         "一年 = $1500"
+      ],
+      "贈送特務幣": [
+        "52500VP = $11800", "42000VP = $9500", "31500VP = $7200", "21000VP = $4800", "10500VP = $2400"
       ]
     };
 
@@ -668,6 +671,10 @@
               <div class="input-group"><label>Riot ID</label><input type="text" id="riotId" placeholder="格式如：XXX#XXX"></div>
             `;
           }
+        } else if (server === "贈送特務幣") {
+          formContainer.innerHTML = `
+            <div class="input-group"><label>Riot ID</label><input type="text" id="riotId" placeholder="格式如：XXX#XXX"></div>
+          `;
         }
       } else if (game === "抖音") {
         if (server === "大陸版") {
@@ -751,6 +758,9 @@
           } else {
             payload.riotId = "購買序號商品";
           }
+        } else if (server === "贈送特務幣") {
+          payload.riotId = document.getElementById("riotId").value.trim();
+          if (!payload.riotId) { alert("⚠️ 請填寫 Riot ID！"); return; }
         }
       } else if (game === "抖音") {
         if (server === "大陸版") {
