@@ -435,6 +435,14 @@
     .tx-amount.credit { color: #379fa4; }
     .tx-amount.debit { color: #ff6b6b; }
 
+    .history-range-hint {
+      font-size: 12px;
+      color: var(--label-tertiary);
+      margin: 2px 2px 10px;
+      text-align: left;
+    }
+    .history-range-hint b { color: var(--tint); font-weight: 700; }
+
     /* 餘額不足警示 */
     .balance-warning {
       background: rgba(255,159,10,0.12);
@@ -580,6 +588,10 @@
     <button id="topupSubmitBtn" onclick="submitTopup()">申請儲值</button>
 
     <div class="wallet-section-title" style="margin-top:28px;">交易紀錄</div>
+    <div class="input-group" style="margin-top:0;">
+      <input type="text" id="walletSearchInput" placeholder="🔍 搜尋交易說明、金額..." oninput="handleWalletSearch()">
+    </div>
+    <div class="history-range-hint" id="walletRangeHint"></div>
     <div id="walletTxList">
       <p style="color:#4a5568; font-size:14px; text-align:center; padding:20px 0;">載入中...</p>
     </div>
@@ -590,6 +602,10 @@
   <!-- ===== 歷史訂單 ===== -->
   <div id="historyPage" class="order-box" style="display: none;">
     <h3 style="margin-top: 0; color: #379fa4; font-weight: 700;">歷史訂單</h3>
+    <div class="input-group" style="margin-top:0;">
+      <input type="text" id="historySearchInput" placeholder="🔍 搜尋遊戲、伺服器、面額、支付方式..." oninput="handleHistorySearch()">
+    </div>
+    <div class="history-range-hint" id="historyRangeHint"></div>
     <div id="historyList" style="text-align:left;">
       <p style="color:#a0aec0; font-size:14px;">載入中...</p>
     </div>
@@ -619,6 +635,36 @@
     let userProfile = null;
     let currentBalance = 0;
     let selectedTopupAmount = 0;
+    let allOrders = [];
+    let allWalletTx = [];
+
+    // ===== 歷史紀錄／交易紀錄 共用：日期解析與範圍搜尋 =====
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const HISTORY_DEFAULT_DAYS = 7;   // 未搜尋時，預設顯示近幾天
+    const HISTORY_SEARCH_MAX_DAYS = 30; // 輸入關鍵字搜尋時，最多回溯幾天
+
+    function parseRecordDate(str) {
+      if (!str) return null;
+      let s = String(str).trim().replace(/\//g, '-').replace(/年|月/g, '-').replace(/日/g, '');
+      let d = new Date(s);
+      if (isNaN(d.getTime())) return null;
+      return d;
+    }
+
+    // records: 原始陣列 | keyword: 搜尋字串 | getSearchText: (rec)=>字串 | getTimeStr: (rec)=>時間字串
+    function filterByDateAndKeyword(records, keyword, getSearchText, getTimeStr) {
+      const now = Date.now();
+      const windowDays = keyword ? HISTORY_SEARCH_MAX_DAYS : HISTORY_DEFAULT_DAYS;
+      const cutoff = now - windowDays * DAY_MS;
+      const kw = keyword.trim().toLowerCase();
+      return records.filter(rec => {
+        const d = parseRecordDate(getTimeStr(rec));
+        // 日期可解析且早於範圍門檻 → 排除；無法解析日期時不因此隱藏資料
+        if (d && d.getTime() < cutoff) return false;
+        if (!kw) return true;
+        return getSearchText(rec).toLowerCase().includes(kw);
+      });
+    }
 
     // ===== 日夜模式 =====
     function applyTheme(theme) {
@@ -1070,6 +1116,7 @@
     async function loadWallet() {
       if (!userProfile) return;
       document.getElementById("walletBalanceDisplay").innerText = "--";
+      document.getElementById("walletRangeHint").innerText = "";
       document.getElementById("walletTxList").innerHTML = `<p style="color:#4a5568; font-size:14px; text-align:center; padding:20px 0;">載入中...</p>`;
 
       try {
@@ -1080,27 +1127,56 @@
         currentBalance = data.balance || 0;
         document.getElementById("walletBalanceDisplay").innerText = currentBalance;
 
-        const txList = document.getElementById("walletTxList");
-        if (!data.transactions || data.transactions.length === 0) {
-          txList.innerHTML = `<p style="color:#4a5568; font-size:14px; text-align:center; padding:20px 0;">尚無交易紀錄</p>`;
-          return;
-        }
-        txList.innerHTML = data.transactions.map(tx => `
-          <div class="tx-item">
-            <div class="tx-left">
-              <div class="tx-desc">${tx.desc}</div>
-              <div class="tx-time">${tx.time}</div>
-            </div>
-            <div class="tx-amount ${tx.type === 'credit' ? 'credit' : 'debit'}">
-              ${tx.type === 'credit' ? '+' : '-'}$${tx.amount}
-            </div>
-          </div>
-        `).join("");
+        allWalletTx = data.transactions || [];
+        renderWalletTxList();
       } catch (err) {
         console.error(err);
+        document.getElementById("walletRangeHint").innerText = "";
         document.getElementById("walletTxList").innerHTML = `<p style="color:#fc8181; font-size:14px; text-align:center;">載入失敗，請稍後再試</p>`;
       }
     }
+
+    function renderWalletTxList() {
+      const txList = document.getElementById("walletTxList");
+      const hintEl = document.getElementById("walletRangeHint");
+      const keyword = document.getElementById("walletSearchInput").value;
+
+      if (!allWalletTx || allWalletTx.length === 0) {
+        hintEl.innerText = "";
+        txList.innerHTML = `<p style="color:#4a5568; font-size:14px; text-align:center; padding:20px 0;">尚無交易紀錄</p>`;
+        return;
+      }
+
+      const filtered = filterByDateAndKeyword(
+        allWalletTx,
+        keyword,
+        tx => [tx.desc, tx.amount, tx.time].filter(Boolean).join(' '),
+        tx => tx.time
+      );
+
+      hintEl.innerHTML = keyword.trim()
+        ? `搜尋「${keyword.trim()}」・近 <b>30</b> 天內共 <b>${filtered.length}</b> 筆`
+        : `預設顯示近 <b>7</b> 天交易・共 <b>${filtered.length}</b> 筆（輸入關鍵字可搜尋近 30 天內紀錄）`;
+
+      if (filtered.length === 0) {
+        txList.innerHTML = `<p style="color:#4a5568; font-size:14px; text-align:center; padding:20px 0;">${keyword.trim() ? '近 30 天內查無符合的交易紀錄' : '近 7 天內尚無交易紀錄'}</p>`;
+        return;
+      }
+
+      txList.innerHTML = filtered.map(tx => `
+        <div class="tx-item">
+          <div class="tx-left">
+            <div class="tx-desc">${tx.desc}</div>
+            <div class="tx-time">${tx.time}</div>
+          </div>
+          <div class="tx-amount ${tx.type === 'credit' ? 'credit' : 'debit'}">
+            ${tx.type === 'credit' ? '+' : '-'}$${tx.amount}
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function handleWalletSearch() { renderWalletTxList(); }
 
     const TOPUP_BONUS_RATE = 0.01; // 儲值回饋比例 1%
     function calcTopupBonus(amount) {
@@ -1191,24 +1267,57 @@
     async function loadHistory() {
       if (!userProfile) return;
       var listEl = document.getElementById("historyList");
+      document.getElementById("historyRangeHint").innerText = "";
       listEl.innerHTML = `<p style="color:#a0aec0; font-size:14px;">載入中...</p>`;
       try {
         var res = await fetch(apiUrl + "?userId=" + encodeURIComponent(userProfile.userId));
         var data = await res.json();
         if (data.status !== "success") { listEl.innerHTML = `<p style="color:#ff6b6b; font-size:14px;">查詢失敗，請稍後再試。</p>`; return; }
-        if (!data.orders || data.orders.length === 0) { listEl.innerHTML = `<p style="color:#a0aec0; font-size:14px;">目前還沒有任何訂單紀錄。</p>`; return; }
-        listEl.innerHTML = data.orders.map(order => `
-          <div style="padding:14px; margin-bottom:10px; background:#1a1f29; border-radius:8px; border:1px solid #2d3748;">
-            <div style="color:#718096; font-size:12px; margin-bottom:6px;">${order.time}</div>
-            <div style="color:#ffffff; font-weight:700; margin-bottom:4px;">${order.game}　${order.server}</div>
-            <div style="color:#a0aec0; font-size:14px;">面額：${order.amount}</div>
-            <div style="color:#a0aec0; font-size:14px;">支付方式：${order.payment}</div>
-          </div>
-        `).join("");
+        allOrders = data.orders || [];
+        renderHistoryList();
       } catch (error) {
         listEl.innerHTML = `<p style="color:#ff6b6b; font-size:14px;">查詢失敗，請檢查網路連線後再試一次。</p>`;
       }
     }
+
+    function renderHistoryList() {
+      const listEl = document.getElementById("historyList");
+      const hintEl = document.getElementById("historyRangeHint");
+      const keyword = document.getElementById("historySearchInput").value;
+
+      if (!allOrders || allOrders.length === 0) {
+        hintEl.innerText = "";
+        listEl.innerHTML = `<p style="color:#a0aec0; font-size:14px;">目前還沒有任何訂單紀錄。</p>`;
+        return;
+      }
+
+      const filtered = filterByDateAndKeyword(
+        allOrders,
+        keyword,
+        o => [o.game, o.server, o.amount, o.payment, o.time].filter(Boolean).join(' '),
+        o => o.time
+      );
+
+      hintEl.innerHTML = keyword.trim()
+        ? `搜尋「${keyword.trim()}」・近 <b>30</b> 天內共 <b>${filtered.length}</b> 筆`
+        : `預設顯示近 <b>7</b> 天訂單・共 <b>${filtered.length}</b> 筆（輸入關鍵字可搜尋近 30 天內紀錄）`;
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<p style="color:#a0aec0; font-size:14px;">${keyword.trim() ? '近 30 天內查無符合的訂單紀錄。' : '近 7 天內尚無訂單紀錄，輸入關鍵字可搜尋近 30 天內的紀錄。'}</p>`;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(order => `
+        <div style="padding:14px; margin-bottom:10px; background:var(--elevated-bg); border-radius:12px; border:0.5px solid var(--separator);">
+          <div style="color:var(--label-tertiary); font-size:12px; margin-bottom:6px;">${order.time}</div>
+          <div style="color:var(--label); font-weight:700; margin-bottom:4px;">${order.game}　${order.server}</div>
+          <div style="color:var(--label-secondary); font-size:14px;">面額：${order.amount}</div>
+          <div style="color:var(--label-secondary); font-size:14px;">支付方式：${order.payment}</div>
+        </div>
+      `).join("");
+    }
+
+    function handleHistorySearch() { renderHistoryList(); }
 
     initializeLiff();
     // 預設高亮第一個按鈕
