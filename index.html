@@ -717,53 +717,6 @@
       showPage('step2');
     }
 
-    // ===== 強制發送訊息建立對話（讓客戶與官方帳號的聊天室產生訊息紀錄）=====
-    function buildOrderChatMessage(payload) {
-      let lines = [
-        "✅ 我已送出代儲訂單",
-        "-------------------------",
-        "🔹 項目：" + payload.game,
-        "🔹 版本：" + (payload.server || "無"),
-        "🔹 面額：" + (payload.amount || "無"),
-        "🔹 支付方式：" + (payload.payment || "無"),
-        "-------------------------",
-        "麻煩客服協助處理，謝謝🙏"
-      ];
-      return lines.join("\n");
-    }
-
-    // 通用：強制在聊天室送出一則文字訊息（不會擋住主流程）
-    async function forceSendChatMessage(text) {
-      // liff.sendMessages 僅在「LINE App 內的一對一聊天室」開啟 LIFF 時才可使用，
-      // 且該 LIFF App 須在 LINE Developers 後台開啟「Send messages（chat_message.write）」權限。
-      if (!liff.isInClient()) return; // 在外部瀏覽器開啟時不會有聊天室可寫入，直接略過
-      try {
-        if (liff.isApiAvailable && !liff.isApiAvailable("sendMessages")) {
-          console.warn("此環境不支援 sendMessages（可能非一對一聊天室，或未開啟權限）");
-          return;
-        }
-        await liff.sendMessages([{ type: "text", text: text }]);
-      } catch (err) {
-        // 即使發送失敗，也不應該擋住主流程，僅記錄錯誤
-        console.error("liff.sendMessages 發送失敗：", err);
-      }
-    }
-
-    async function forceSendOrderMessage(payload) {
-      await forceSendChatMessage(buildOrderChatMessage(payload));
-    }
-
-    function buildTopupChatMessage(topupAmount) {
-      let lines = [
-        "💰 我已送出儲值申請",
-        "-------------------------",
-        "🔹 申請金額：$" + topupAmount,
-        "-------------------------",
-        "麻煩客服協助確認收款，謝謝🙏"
-      ];
-      return lines.join("\n");
-    }
-
     async function submitOrder() {
       if (!userProfile) { alert("尚未成功讀取 LINE 身分，無法下單！"); return; }
 
@@ -856,10 +809,6 @@
         // 進度條顯示第三步「送出完成」，短暫停留後關閉或回首頁
         setProgressDone();
         await new Promise(r => setTimeout(r, 1200));
-
-        // 強制客戶發送一則訊息到與官方帳號的聊天室，建立對話（讓客服在聊天室看得到、方便後續回覆）
-        await forceSendOrderMessage(payload);
-
         alert("🎉 訂單已成功送出！\n客服正在處理中，請稍候。");
         if (liff.isInClient()) {
           liff.closeWindow();
@@ -949,9 +898,6 @@
             amount: topupAmount
           })
         });
-
-        // 強制客戶發送一則訊息到與官方帳號的聊天室，建立對話（讓客服在聊天室看得到、方便後續確認收款）
-        await forceSendChatMessage(buildTopupChatMessage(topupAmount));
 
         alert(`✅ 儲值申請已送出！\n金額：$${topupAmount}\n\n請依照客服指示完成付款後，老闆將為您加值。`);
         document.querySelectorAll('.topup-btn').forEach(b => b.classList.remove('selected'));
