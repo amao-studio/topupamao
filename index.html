@@ -497,7 +497,7 @@
   </div>
 
   <!-- ===== Step 1 ===== -->
-  <div id="step1" class="order-box">
+  <div id="step1" class="order-box" style="display: none;">
     <div class="input-group">
       <label>請選擇遊戲/項目</label>
       <select id="gameSelect">
@@ -554,8 +554,8 @@
     <button class="btn-secondary" onclick="showPage('step1')">回上一頁修改</button>
   </div>
 
-  <!-- ===== 我的錢包 ===== -->
-  <div id="walletPage" class="order-box" style="display: none;">
+  <!-- ===== 我的錢包（首頁） ===== -->
+  <div id="walletPage" class="order-box">
     <div class="wallet-balance-card">
       <div class="wallet-balance-label">錢包餘額</div>
       <div>
@@ -596,7 +596,7 @@
       <p style="color:#4a5568; font-size:14px; text-align:center; padding:20px 0;">載入中...</p>
     </div>
 
-    <button class="btn-secondary" onclick="showPage('step1')">返回首頁</button>
+    <button class="btn-secondary" onclick="showPage('step1')">🛒 前往快速下單</button>
   </div>
 
   <!-- ===== 歷史訂單 ===== -->
@@ -609,19 +609,19 @@
     <div id="historyList" style="text-align:left;">
       <p style="color:#a0aec0; font-size:14px;">載入中...</p>
     </div>
-    <button class="btn-secondary" onclick="showPage('step1')">返回首頁</button>
+    <button class="btn-secondary" onclick="showPage('walletPage')">返回首頁</button>
   </div>
 
   </div><!-- /.ios-content -->
 
   <div class="top-btn-row">
-    <button class="top-btn active" onclick="showPage('step1')">
-      <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L4 14h6l-1 7 9-11h-6l1-7z"/></svg></span>
-      快速下單
-    </button>
-    <button class="top-btn" onclick="showPage('walletPage')">
+    <button class="top-btn active" onclick="showPage('walletPage')">
       <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v2"/><path d="M3 7v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H5a2 2 0 0 1-2-2Z"/><circle cx="16.5" cy="14" r="1.4" fill="currentColor" stroke="none"/></svg></span>
       我的錢包
+    </button>
+    <button class="top-btn" onclick="showPage('step1')">
+      <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L4 14h6l-1 7 9-11h-6l1-7z"/></svg></span>
+      快速下單
     </button>
     <button class="top-btn" onclick="showPage('historyPage')">
       <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span>
@@ -728,7 +728,7 @@
 
       // 切換頂部按鈕高亮
       document.querySelectorAll('.top-btn').forEach(btn => btn.classList.remove('active'));
-      const btnMap = { step1: 0, walletPage: 1, historyPage: 2 };
+      const btnMap = { walletPage: 0, step1: 1, historyPage: 2 };
       if (btnMap[pageId] !== undefined) {
         document.querySelectorAll('.top-btn')[btnMap[pageId]].classList.add('active');
       }
@@ -790,6 +790,10 @@
           document.getElementById("displayName").innerText = "你好，" + userProfile.displayName;
           document.getElementById("pictureUrl").src = userProfile.pictureUrl;
           document.getElementById("pictureUrl").style.display = "inline-block";
+
+          // 客戶完成 LINE 授權後即載入錢包（首頁）。
+          // 若為首次使用的新客戶，後端會自動於試算表 Wallet 分頁建檔（初始餘額 $0）。
+          loadWallet();
         } else {
           liff.login();
         }
@@ -1120,7 +1124,7 @@
       document.getElementById("walletTxList").innerHTML = `<p style="color:#4a5568; font-size:14px; text-align:center; padding:20px 0;">載入中...</p>`;
 
       try {
-        var res = await fetch(apiUrl + "?action=wallet&userId=" + encodeURIComponent(userProfile.userId));
+        var res = await fetch(apiUrl + "?action=wallet&userId=" + encodeURIComponent(userProfile.userId) + "&displayName=" + encodeURIComponent(userProfile.displayName || ""));
         var data = await res.json();
         if (data.status !== "success") throw new Error("查詢失敗");
 
